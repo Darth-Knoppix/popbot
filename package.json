@@ -22,6 +22,8 @@
   "homepage": "https://github.com/Darth-Knoppix/popbot#readme",
   "dependencies": {
     "compromise": "^7.0.28",
+    "giphy-api": "^1.2.3",
+    "nodejs-text-summarizer": "^2.0.3",
     "twit": "^2.2.5"
   }
 }

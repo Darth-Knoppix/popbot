@@ -11,10 +11,12 @@ const twit 		= require('twit');
 const comp 		= require('compromise');
 const fs 		= require('fs');
 const sentiment = require('sentiment');
+const summarizer = require('nodejs-text-summarizer')
+const giphy = require('giphy-api')();
 
 const Twitter = new twit(config);
 
-const happyEmoji = ['😆', '😀', '😃', '😄', '😁', '😊'];
+const happyEmoji = ['', '😀', '😃', '😄', '😁', '😊'];
 const sadEmoji = ['😞', '🙁', '😫', '😤', '😕', '😡'];
 
 let lastUpdated;
@@ -79,32 +81,36 @@ const hasBestTag = (word, tag) => {
 	}
 };
 
-const manufactureTweet = (tweetNLP, wordBag) => {
+const manufactureTweet = (tweetNLP, wordBag, sentiment) => {
 	let newTweet = [];
 	tweetNLP.out('terms').forEach((word) => {
 		let newWord = word;
 
-		if(isPerson(newWord)){
-			let names = chooseRandom(wordBag.people);
-			let name = names;
+		// if(isPerson(newWord)){
+		// 	let names = chooseRandom(wordBag.people);
+		// 	let name = names;
 
-			if(isFirstName(newWord) && newWord.firstName.length > 1){
-				name = newWord.firstName;
-			}
+		// 	if(isFirstName(newWord) && newWord.length > 1){
+		// 		name = newWord.firstName;
+		// 	}
 
-			if(isLastName(newWord) && newWord.lastName.length > 1){
-				name = newWord.lastName;
-			}
+		// 	if(isLastName(newWord) && newWord.length > 1){
+		// 		name = newWord.lastName;
+		// 	}
 
-			newWord = name.normal.charAt(0).toUpperCase() + name.normal.slice(1);
-		}else if(isUrl(newWord) || newWord.text.includes('@') || newWord.text.includes('RT')){
+		// 	newWord = name.normal.charAt(0).toUpperCase() + name.normal.slice(1);
+		// }else
+		if(isUrl(newWord) || newWord.text.includes('@') || newWord.text.includes('RT') || newWord.text.includes('http')){
 			newWord = '';
-		}else if(isAdverb(newWord)){
-			let data = fs.readFileSync('./adverbs.json', 'utf8');
-
-			const adverbs = JSON.parse(data);
-			newWord = chooseRandom(adverbs);
 		}
+		// }else if(isAdverb(newWord)){
+		// 	let data = fs.readFileSync('./adverbs.json', 'utf8');
+
+		// 	const adverbs = JSON.parse(data);
+		// 	newWord = chooseRandom(adverbs);
+		// }else{
+		// 	console.log(newWord);
+		// }
 		// else if(isPlace(newWord) && wordBag.places.length > 0){
 		// 	newWord = chooseRandom(wordBag.places);
 		// }
@@ -154,13 +160,13 @@ const manufactureTweet = (tweetNLP, wordBag) => {
 	let indicator;
 	tweet = nlpSentence;
 
-	if(sentiment(sentence).score > 0){
+	if(sentiment.score > 0){
 		indicator = chooseRandom(happyEmoji);
 	}else{
-		tindicator = chooseRandom(sadEmoji);
+		indicator = chooseRandom(sadEmoji);
 	}
 
-	return tweet.out('text') + indicator;
+	return tweet.sentences().toPresentTense().out('text') + ' ' + indicator;
 };
 
 const searchForTweets = (trend_param) => {
@@ -168,7 +174,7 @@ const searchForTweets = (trend_param) => {
 	Twitter.get('search/tweets', trend_param, (error, data, response) =>{
 		if(!error){
 			const tweets = data.statuses;
-			let randomTweet = chooseRandom(tweets).text;
+			// let randomTweet = chooseRandom(tweets).text;
 
 			tweets.forEach((tweet) => {
 				tweetList.push(tweet.text);
@@ -177,10 +183,10 @@ const searchForTweets = (trend_param) => {
 			const tweetDump = tweetList.join('. ');
 
 			console.log('Chose random tweet: ');
-			console.log(randomTweet);
+			// console.log(randomTweet);
 
 			let tweetNLP = nlp(tweetDump);
-			let newTweetNLP = nlp(randomTweet);
+			let newTweetNLP = nlp(summarizer(tweetDump));
 
 			let people 			= tweetNLP.people().sort('freq').unique();
 			let places 			= tweetNLP.places().sort('freq').unique();
@@ -210,9 +216,40 @@ const searchForTweets = (trend_param) => {
 				console.log('tweets saved');
 			});
 
-			finalTweet = manufactureTweet(newTweetNLP, wordBag);
-
+			finalTweet = manufactureTweet(newTweetNLP, wordBag, sentiment(tweetDump));
+			console.log('Tweet constructed:');
 			console.log(finalTweet);
+
+			giphy.trending({limit: 100}, function(err, res) {
+				let matchingTrends = res.data.filter((el) => {
+					return el.url.includes(trend_param.q);
+				});
+
+				if(matchingTrends.length == 0){
+					matchingTrends = res.data;
+				}
+
+				let image = chooseRandom(matchingTrends);
+				let imageUrl = '';
+				if(image)
+				{
+					imageUrl = image.url;
+				}
+
+				const tweet_params = {
+					status: finalTweet + ' ' + imageUrl
+				};
+
+				Twitter.post('statuses/update', tweet_params, (error, data, response) => {
+					if(!error){
+						console.log('---> Successfully tweeted.');
+					}else{
+						console.log('  + Unable to post tweets...');
+						console.log(error);
+						console.log(response);
+					}	
+				});
+			});
 
 		}else{
 			console.log('  + Unable to find tweets from trend...');
@@ -225,8 +262,7 @@ const composeTweet = () => {
 	console.log('---> Composing tweet');
 
 	const params = {
-        id: '1', 			// REQUIRED
-        exclude: 'recent' 	// Optional
+        id: 23424916 			// REQUIRED
     };
 
     let topTrends;
@@ -241,7 +277,7 @@ const composeTweet = () => {
 				return b.tweet_volume - a.tweet_volume;
 			});
 
-			const randomTrend = chooseRandom(topTrends.slice(0,5));
+			let randomTrend = chooseRandom(topTrends.slice(0,10));
 			console.log('Trend selected: ' + randomTrend.name);
 
 			const trend_param = {
@@ -266,8 +302,8 @@ const composeTweet = () => {
 
 // 	let wordBag = JSON.parse(data);
 // 	// console.log(wordBag);
-// 	console.log("RT @mfaa_pex: English proverbs success is getting what you want Happiness is wanting what you get #رحله_شاهي_السعد1 #حياتك16");
-// 	let tweet = manufactureTweet(nlp("RT @mfaa_pex: English proverbs success is getting what you want Happiness is wanting what you get #رحله_شاهي_السعد1 #حياتك16"), wordBag);
+// 	console.log("Hiii guys, Good morning, Have a nice day");
+// 	let tweet = manufactureTweet(nlp("Hiii guys, Good morning, Have a nice day James"), wordBag);
 
 // 	console.log(tweet);
 // });
@@ -276,5 +312,4 @@ composeTweet();
 
 setInterval(()=> {
 	composeTweet();
-}, 1000 * 60 * 15)
-
+}, 1000 * 60 * 7)
