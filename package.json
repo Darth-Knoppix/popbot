@@ -1,0 +1,27 @@
+{
+  "name": "popbot",
+  "version": "0.1.0",
+  "description": "A bot which tweets about popular topics.",
+  "main": "bot.js",
+  "scripts": {
+    "test": "node bot.js",
+    "start": "node bot.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Darth-Knoppix/popbot.git"
+  },
+  "keywords": [
+    "bot"
+  ],
+  "author": "Seth Corker",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Darth-Knoppix/popbot/issues"
+  },
+  "homepage": "https://github.com/Darth-Knoppix/popbot#readme",
+  "dependencies": {
+    "compromise": "^7.0.28",
+    "twit": "^2.2.5"
+  }
+}
